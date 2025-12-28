@@ -40,10 +40,7 @@ export default function AlbumsClient({ isAdmin }) {
             const fd = new FormData();
             fd.append("albumId", id);
 
-            const res = await fetch("/api/albums/delete", {
-                method: "POST",
-                body: fd,
-            });
+            const res = await fetch("/api/albums/delete", { method: "POST", body: fd });
 
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data?.ok) {
@@ -62,7 +59,6 @@ export default function AlbumsClient({ isAdmin }) {
 
     return (
         <div>
-            {/* 상단 버튼 */}
             <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
                 {isAdmin && (
                     <Link className="btn" href="/albums/new">
@@ -74,14 +70,12 @@ export default function AlbumsClient({ isAdmin }) {
                     관리자 로그인
                 </Link>
 
-                {/* 공용 로그아웃 */}
                 <form action="/api/auth/logout" method="post">
                     <button className="btn" type="submit">
                         로그아웃(공용)
                     </button>
                 </form>
 
-                {/* 관리자 로그아웃 (관리자 쿠키만 끔) */}
                 {isAdmin && (
                     <form action="/api/auth/admin-logout" method="post">
                         <button className="btn" type="submit">
@@ -91,17 +85,10 @@ export default function AlbumsClient({ isAdmin }) {
                 )}
             </div>
 
-            {/* 목록 */}
             {albums.length === 0 ? (
                 <p style={{ opacity: 0.7 }}>아직 앨범이 없어요.</p>
             ) : (
-                <div
-                    style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-                        gap: 12,
-                    }}
-                >
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
                     {albums.map((a) => (
                         <div
                             key={a.id}
@@ -112,13 +99,7 @@ export default function AlbumsClient({ isAdmin }) {
                                 background: "rgba(0,0,0,0.12)",
                             }}
                         >
-                            <Link
-                                href={`/albums/${a.id}`}
-                                style={{
-                                    textDecoration: "none",
-                                    display: "block",
-                                }}
-                            >
+                            <Link href={`/albums/${a.id}`} style={{ textDecoration: "none", display: "block" }}>
                                 <div style={{ fontWeight: 700, marginBottom: 6 }}>{a.title}</div>
                                 <div style={{ fontSize: 12, opacity: 0.6 }}>{a.createdAt || ""}</div>
                             </Link>

@@ -13,7 +13,7 @@ export async function POST(req) {
     }
 
     if (pass !== process.env.FAMILY_PASSCODE) {
-        return NextResponse.redirect(new URL("/enter?err=1", req.url), { status: 303 });
+        return NextResponse.redirect(new URL("/login?err=1", req.url), { status: 303 });
     }
 
     const res = NextResponse.redirect(new URL("/albums", req.url), { status: 303 });

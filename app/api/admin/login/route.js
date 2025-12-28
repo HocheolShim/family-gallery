@@ -1,32 +1,23 @@
+// app/api/admin/login/route.js
 import { NextResponse } from "next/server";
-
-export const runtime = "nodejs";
 
 export async function POST(req) {
     const form = await req.formData();
-    const pass = String(form.get("password") || "");
+    const pass = String(form.get("pass") ?? "");
+    const redirectTo = String(form.get("redirectTo") ?? "/albums");
 
-    const ADMIN_PASS = process.env.ADMIN_PASSCODE;
-
-    if (!ADMIN_PASS || pass !== ADMIN_PASS) {
-        return NextResponse.redirect(
-            new URL("/albums?err=bad_password", req.url),
-            { status: 303 }
-        );
+    if (pass !== process.env.ADMIN_PASSCODE) {
+        return NextResponse.redirect(new URL("/admin?err=1", req.url), { status: 303 });
     }
 
-    const res = NextResponse.redirect(
-        new URL("/albums?admin=1", req.url),
-        { status: 303 }
-    );
+    const res = NextResponse.redirect(new URL(redirectTo, req.url), { status: 303 });
 
-    // 🔴 여기 핵심
-    res.cookies.set("admin_session", "ok", {
+    res.cookies.set("fg_admin", "1", {
         httpOnly: true,
-        secure: true,      // ✅ Vercel 필수
-        sameSite: "lax",   // ✅ POST/redirect 허용
-        path: "/",         // ✅ 모든 API 경로에서 접근 가능
-        maxAge: 60 * 60 * 6, // 6시간
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30,
     });
 
     return res;

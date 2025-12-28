@@ -4,8 +4,8 @@ export const dynamic = "force-dynamic";
 import { cookies } from "next/headers";
 import AlbumsClient from "./AlbumsClient";
 
-export default async function AlbumsPage() {   // ✅ async
-  const c = await cookies();                   // ✅ await
+export default async function AlbumsPage() {
+  const c = await cookies(); // ✅ Next 16에서 Promise일 수 있음
   const authed = c.get("fg_auth")?.value === "1";
   const isAdmin = c.get("fg_admin")?.value === "1";
 

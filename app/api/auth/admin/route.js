@@ -8,14 +8,15 @@ export async function POST(req) {
     return NextResponse.redirect(new URL("/admin?err=1", req.url), { status: 303 });
   }
 
-  // ✅ 관리자 쿠키 심기
-  const res = NextResponse.redirect(new URL("/albums/1?admin=1", req.url), { status: 303 });
-  res.cookies.set("admin_session", "ok", {
+  // ✅ 관리자 쿠키 심기 (fg_admin으로 통일)
+  const res = NextResponse.redirect(new URL("/albums", req.url), { status: 303 });
+
+  res.cookies.set("fg_admin", "1", {
     httpOnly: true,
     sameSite: "lax",
-    secure: false, // 나중에 배포(HTTPS)에서는 true 권장
+    secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 24 * 30, // 30일
+    maxAge: 60 * 60 * 24 * 30,
   });
 
   return res;

@@ -1,16 +1,29 @@
 // middleware.js
 import { NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/", "/login", "/admin", "/api/auth/login", "/api/auth/logout", "/api/auth/admin-login"];
+const PUBLIC_PATHS = [
+    "/",
+    "/login",
+    "/admin",
+    "/api/auth/family",
+    "/api/auth/logout",
+    "/api/auth/admin",
+    "/api/auth/admin-logout",
+    "/api/admin/login", // ✅ /admin 페이지가 쓰는 API
+];
 
-const PROTECTED_PREFIXES = ["/albums", "/api/albums"];
+const PROTECTED_PREFIXES = ["/albums", "/api/albums", "/api/r2", "/api/image"];
 
-const ADMIN_ONLY_PREFIXES = ["/albums/new", "/api/albums/create", "/api/albums/delete"];
+const ADMIN_ONLY_PREFIXES = [
+    "/albums/new",
+    "/api/albums/create",
+    "/api/albums/delete",
+    // 필요하면 여기에 업로드/삭제 API 추가
+    // "/api/r2/upload",
+];
 
-// ✅ cookie 헤더에서 특정 쿠키 값을 안전하게 뽑는 함수
 function getCookie(req, name) {
     const cookie = req.headers.get("cookie") || "";
-    // name=...; 형태를 찾기
     const match = cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
     return match ? decodeURIComponent(match[1]) : undefined;
 }
@@ -27,7 +40,7 @@ export function middleware(req) {
     const isProtected = PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
     if (!isProtected) return NextResponse.next();
 
-    // ✅ 공용 로그인 쿠키 체크
+    // 공용 로그인 체크
     const authed = getCookie(req, "fg_auth") === "1";
     if (!authed) {
         if (pathname.startsWith("/api/")) {
