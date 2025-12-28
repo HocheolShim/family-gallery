@@ -5,13 +5,17 @@ export const revalidate = 0;
 import Link from "next/link";
 
 async function getAlbums() {
-  const res = await fetch("/api/albums/list", { cache: "no-store" });
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/albums/list`,
+    { cache: "no-store" }
+  );
   const data = await res.json();
   return data?.albums || [];
 }
 
-export default async function AlbumsPage() {
+export default async function AlbumsPage({ searchParams }) {
   const albums = await getAlbums();
+  const admin = searchParams?.admin === "1";
 
   return (
     <div style={{ padding: 18 }}>
@@ -22,18 +26,30 @@ export default async function AlbumsPage() {
 
       <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
         {/* ✅ 누구나 생성 가능 */}
-        <Link className="btn" href="/albums/new">+ 새 앨범</Link>
-        <Link className="btn" href="/admin">관리자 로그인</Link>
+        <Link className="btn" href="/albums/new">
+          + 새 앨범
+        </Link>
+
+        {/* 관리자 로그인은 유지 */}
+        <Link className="btn" href="/admin">
+          관리자 로그인
+        </Link>
       </div>
 
       {albums.length === 0 ? (
         <p style={{ opacity: 0.7 }}>아직 앨범이 없어요.</p>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))",
+            gap: 12,
+          }}
+        >
           {albums.map((a) => (
             <Link
               key={a.id}
-              href={`/albums/${a.id}`}
+              href={`/albums/${a.id}${admin ? "?admin=1" : ""}`}
               style={{
                 border: "1px solid rgba(255,255,255,0.12)",
                 borderRadius: 14,
@@ -43,7 +59,9 @@ export default async function AlbumsPage() {
               }}
             >
               <div style={{ fontWeight: 700, marginBottom: 6 }}>{a.title}</div>
-              <div style={{ fontSize: 12, opacity: 0.6 }}>{a.createdAt || ""}</div>
+              <div style={{ fontSize: 12, opacity: 0.6 }}>
+                {a.createdAt || ""}
+              </div>
             </Link>
           ))}
         </div>

@@ -51,13 +51,12 @@ async function writeAlbumsToR2(albums) {
             Key: ALBUMS_KEY,
             Body: JSON.stringify(albums, null, 2),
             ContentType: "application/json; charset=utf-8",
-            // 캐시로 인해 목록이 안 바뀌는 것 방지(중요)
-            CacheControl: "no-store, max-age=0",
+            CacheControl: "no-store",
         })
     );
 }
 
-// (선택) 브라우저에서 /api/albums/create 를 직접 열면 보기 좋게 405 처리
+// 주소창(GET)로 열면 405 주는 게 정상
 export async function GET() {
     return NextResponse.json(
         { ok: false, error: "Method Not Allowed" },
@@ -66,19 +65,18 @@ export async function GET() {
 }
 
 export async function POST(req) {
-    // ✅ 생성은 누구나 가능 (관리자 체크 제거)
-
     const form = await req.formData();
     const title = safeText(form.get("title"), 80);
 
-    // ✅ 일반 사용자 기준 기본 리다이렉트
+    // ✅ 기본은 일반 사용자 기준
     const redirectToRaw = safeText(form.get("redirectTo") || "/albums", 200);
     const redirectTo = redirectToRaw.startsWith("/") ? redirectToRaw : "/albums";
 
     if (!title) {
-        return NextResponse.redirect(new URL(`${redirectTo}?err=empty_title`, req.url), {
-            status: 303,
-        });
+        return NextResponse.redirect(
+            new URL(`${redirectTo}?err=empty_title&t=${Date.now()}`, req.url),
+            { status: 303 }
+        );
     }
 
     const albums = await readAlbumsFromR2();
@@ -92,10 +90,10 @@ export async function POST(req) {
     const next = [album, ...albums];
     await writeAlbumsToR2(next);
 
-    // ✅ /albums 페이지 캐시 무효화
+    // ✅ 목록 즉시 반영
     revalidatePath("/albums");
 
-    // ✅ 즉시 반영 강제(쿼리 버스터)
+    // ✅ 캐시 버스터
     return NextResponse.redirect(
         new URL(`${redirectTo}?t=${Date.now()}`, req.url),
         { status: 303 }
