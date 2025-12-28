@@ -7,28 +7,19 @@ import { headers } from "next/headers";
 
 async function getAlbums() {
   const h = await headers();
-
   const host = h.get("x-forwarded-host") ?? h.get("host");
   const proto = h.get("x-forwarded-proto") ?? "https";
 
-  if (!host) {
-    console.error("getAlbums failed: missing host header");
-    return [];
-  }
+  if (!host) return [];
 
-  const url = `${proto}://${host}/api/albums/list`;
-  const res = await fetch(url, { cache: "no-store" });
-
-  if (!res.ok) {
-    console.error("getAlbums failed:", res.status, "url:", url);
-    return [];
-  }
+  const res = await fetch(`${proto}://${host}/api/albums/list`, { cache: "no-store" });
+  if (!res.ok) return [];
 
   const data = await res.json();
   return data?.albums || [];
 }
 
-export default async function AlbumsPage({ searchParams }) {
+export default async function Page({ searchParams }) {
   const albums = await getAlbums();
   const admin = searchParams?.admin === "1";
 
@@ -44,31 +35,19 @@ export default async function AlbumsPage({ searchParams }) {
           + 새 앨범
         </Link>
 
-        <Link className="btn" href="/admin">
-          관리자 로그인
-        </Link>
+        <Link className="btn" href="/admin">관리자 로그인</Link>
 
         {admin ? (
-          <Link className="btn" href="/albums">
-            관리자 모드 끄기
-          </Link>
+          <Link className="btn" href="/albums">관리자 모드 끄기</Link>
         ) : (
-          <Link className="btn" href="/albums?admin=1">
-            관리자 모드 켜기(로그인)
-          </Link>
+          <Link className="btn" href="/albums?admin=1">관리자 모드 켜기(로그인)</Link>
         )}
       </div>
 
       {albums.length === 0 ? (
         <p style={{ opacity: 0.7 }}>아직 앨범이 없어요.</p>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))",
-            gap: 12,
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12 }}>
           {albums.map((a) => (
             <Link
               key={a.id}
