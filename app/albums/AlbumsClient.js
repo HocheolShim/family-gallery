@@ -1,0 +1,75 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+
+export default function AlbumsClient({ admin }) {
+    const [albums, setAlbums] = useState(null);
+
+    async function load() {
+        const res = await fetch("/api/albums/list", { cache: "no-store" });
+        const data = await res.json();
+        setAlbums(data.albums || []);
+    }
+
+    useEffect(() => {
+        load();
+    }, []);
+
+    if (albums === null) {
+        return <p>불러오는 중...</p>;
+    }
+
+    return (
+        <>
+            <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+                <Link className="btn" href={admin ? "/albums/new?admin=1" : "/albums/new"}>
+                    + 새 앨범
+                </Link>
+
+                <Link className="btn" href="/admin">
+                    관리자 로그인
+                </Link>
+
+                {admin ? (
+                    <Link className="btn" href="/albums">
+                        관리자 모드 끄기
+                    </Link>
+                ) : (
+                    <Link className="btn" href="/albums?admin=1">
+                        관리자 모드 켜기(로그인)
+                    </Link>
+                )}
+            </div>
+
+            {albums.length === 0 ? (
+                <p style={{ opacity: 0.7 }}>아직 앨범이 없어요.</p>
+            ) : (
+                <div
+                    style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))",
+                        gap: 12,
+                    }}
+                >
+                    {albums.map((a) => (
+                        <Link
+                            key={a.id}
+                            href={`/albums/${a.id}${admin ? "?admin=1" : ""}`}
+                            style={{
+                                border: "1px solid rgba(255,255,255,0.12)",
+                                borderRadius: 14,
+                                padding: 14,
+                                textDecoration: "none",
+                                display: "block",
+                            }}
+                        >
+                            <div style={{ fontWeight: 700, marginBottom: 6 }}>{a.title}</div>
+                            <div style={{ fontSize: 12, opacity: 0.6 }}>{a.createdAt}</div>
+                        </Link>
+                    ))}
+                </div>
+            )}
+        </>
+    );
+}
