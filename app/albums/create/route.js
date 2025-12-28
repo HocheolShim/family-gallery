@@ -1,123 +1,103 @@
+// app/api/albums/create/route.js
 import { NextResponse } from "next/server";
-import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { revalidatePath } from "next/cache";
+import { getR2 } from "@/lib/r2";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-function isSafeTitle(s) {
-    return typeof s === "string" && s.trim().length >= 1 && s.trim().length <= 60;
+const ALBUMS_KEY = process.env.ALBUMS_KEY || "albums/index.json";
+
+function safeText(s, max = 60) {
+    return String(s || "").trim().slice(0, max);
 }
-function newId() {
-    return `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+
+function makeId() {
+    return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
-function streamToString(stream) {
-    return new Promise((resolve, reject) => {
+
+async function streamToString(stream) {
+    return await new Promise((resolve, reject) => {
         const chunks = [];
         stream.on("data", (c) => chunks.push(c));
-        stream.on("error", reject);
         stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
+        stream.on("error", reject);
     });
 }
 
-function getR2Client() {
-    const endpoint = process.env.R2_ENDPOINT;
-    const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-
-    if (!endpoint || !accessKeyId || !secretAccessKey) {
-        throw new Error(
-            `Missing R2 envs: R2_ENDPOINT=${!!endpoint}, R2_ACCESS_KEY_ID=${!!accessKeyId}, R2_SECRET_ACCESS_KEY=${!!secretAccessKey}`
-        );
-    }
-
-    return new S3Client({
-        region: "auto",
-        endpoint,
-        credentials: { accessKeyId, secretAccessKey },
-    });
-}
-
-const ALBUMS_KEY = "albums.json";
-
-async function readAlbumsFromR2(r2, bucket) {
+async function readAlbumsFromR2() {
+    const r2 = getR2();
     try {
-        const out = await r2.send(new GetObjectCommand({ Bucket: bucket, Key: ALBUMS_KEY }));
-        const text = await streamToString(out.Body);
-        const data = JSON.parse(text);
+        const res = await r2.send(
+            new GetObjectCommand({
+                Bucket: process.env.R2_BUCKET_NAME,
+                Key: ALBUMS_KEY,
+            })
+        );
+        const raw = await streamToString(res.Body);
+        const data = JSON.parse(raw);
         return Array.isArray(data) ? data : [];
-    } catch (e) {
-        const name = e?.name || "";
-        const code = e?.Code || e?.code || "";
-        // 처음이면 없을 수 있음
-        if (name === "NoSuchKey" || code === "NoSuchKey" || code === "NotFound") return [];
-        // 그 외는 위로 던져서 에러 보이게
-        throw e;
+    } catch {
+        return [];
     }
 }
 
-async function writeAlbumsToR2(r2, bucket, albums) {
+async function writeAlbumsToR2(albums) {
+    const r2 = getR2();
     await r2.send(
         new PutObjectCommand({
-            Bucket: bucket,
+            Bucket: process.env.R2_BUCKET_NAME,
             Key: ALBUMS_KEY,
             Body: JSON.stringify(albums, null, 2),
             ContentType: "application/json; charset=utf-8",
-            CacheControl: "no-store",
+            // 캐시로 인해 목록이 안 바뀌는 것 방지(중요)
+            CacheControl: "no-store, max-age=0",
         })
     );
 }
 
+// (선택) 브라우저에서 /api/albums/create 를 직접 열면 보기 좋게 405 처리
+export async function GET() {
+    return NextResponse.json(
+        { ok: false, error: "Method Not Allowed" },
+        { status: 405 }
+    );
+}
+
 export async function POST(req) {
-    try {
-        // ✅ 여기서 쿠키가 실제로 들어오는지 로그
-        const cookieVal = req.cookies?.get?.("admin_session")?.value;
-        console.log("[albums/create] cookie admin_session =", cookieVal);
+    // ✅ 생성은 누구나 가능 (관리자 체크 제거)
 
-        const isAdmin = cookieVal === "ok";
-        if (!isAdmin) {
-            // ❗️Forbidden이면 이유를 화면에 찍게 돌려보냄
-            return NextResponse.redirect(new URL(`/albums/new?err=forbidden`, req.url), { status: 303 });
-        }
+    const form = await req.formData();
+    const title = safeText(form.get("title"), 80);
 
-        const form = await req.formData();
-        const titleRaw = String(form.get("title") || "");
-        const title = titleRaw.trim();
+    // ✅ 일반 사용자 기준 기본 리다이렉트
+    const redirectToRaw = safeText(form.get("redirectTo") || "/albums", 200);
+    const redirectTo = redirectToRaw.startsWith("/") ? redirectToRaw : "/albums";
 
-        console.log("[albums/create] title =", title);
-
-        if (!isSafeTitle(title)) {
-            return NextResponse.redirect(new URL(`/albums/new?err=bad_title`, req.url), { status: 303 });
-        }
-
-        const bucket = process.env.R2_BUCKET_NAME;
-        if (!bucket) {
-            throw new Error("Missing env: R2_BUCKET_NAME");
-        }
-
-        const r2 = getR2Client();
-
-        // ✅ 읽기/쓰기 테스트 로그
-        console.log("[albums/create] read albums.json from R2 ...");
-        const albums = await readAlbumsFromR2(r2, bucket);
-        console.log("[albums/create] current albums length =", albums.length);
-
-        const id = newId();
-        const now = new Date().toISOString();
-
-        const nextAlbums = [{ id, title, createdAt: now }, ...albums];
-
-        console.log("[albums/create] write albums.json to R2 ...");
-        await writeAlbumsToR2(r2, bucket, nextAlbums);
-        console.log("[albums/create] write OK. redirect to /albums/" + id);
-
-        return NextResponse.redirect(new URL(`/albums/${id}?admin=1`, req.url), { status: 303 });
-    } catch (e) {
-        // ❗️무조건 화면에서 보이게
-        const msg = encodeURIComponent(e?.message || String(e));
-        const name = encodeURIComponent(e?.name || "");
-        console.error("[albums/create] ERROR:", e);
-
-        return NextResponse.redirect(new URL(`/albums/new?err=server&name=${name}&msg=${msg}`, req.url), {
+    if (!title) {
+        return NextResponse.redirect(new URL(`${redirectTo}?err=empty_title`, req.url), {
             status: 303,
         });
     }
+
+    const albums = await readAlbumsFromR2();
+
+    const album = {
+        id: makeId(),
+        title,
+        createdAt: new Date().toISOString(),
+    };
+
+    const next = [album, ...albums];
+    await writeAlbumsToR2(next);
+
+    // ✅ /albums 페이지 캐시 무효화
+    revalidatePath("/albums");
+
+    // ✅ 즉시 반영 강제(쿼리 버스터)
+    return NextResponse.redirect(
+        new URL(`${redirectTo}?t=${Date.now()}`, req.url),
+        { status: 303 }
+    );
 }
