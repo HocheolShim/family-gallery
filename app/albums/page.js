@@ -3,12 +3,38 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import Link from "next/link";
+import { headers } from "next/headers";
+
+function getBaseUrl() {
+  // 1) 직접 지정한 값이 있으면 최우선
+  const fromEnv = process.env.NEXT_PUBLIC_BASE_URL;
+  if (fromEnv && fromEnv.startsWith("http")) return fromEnv;
+
+  // 2) Vercel 환경이면 자동으로 생성
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+
+  // 3) 런타임 요청 헤더 기반으로 생성 (Preview/커스텀 도메인에서도 안전)
+  const h = headers();
+  const host = h.get("x-forwarded-host") || h.get("host");
+  const proto = h.get("x-forwarded-proto") || "http";
+  if (host) return `${proto}://${host}`;
+
+  // 4) 로컬 fallback
+  return "http://localhost:3000";
+}
 
 async function getAlbums() {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/albums/list`,
-    { cache: "no-store" }
-  );
+  const baseUrl = getBaseUrl();
+  const res = await fetch(`${baseUrl}/api/albums/list`, {
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    // 서버 로그에서 원인 확인 가능
+    console.error("getAlbums failed:", res.status, await res.text());
+    return [];
+  }
+
   const data = await res.json();
   return data?.albums || [];
 }
@@ -29,7 +55,6 @@ export default async function AlbumsPage({ searchParams }) {
           + 새 앨범
         </Link>
 
-        {/* 관리자 로그인은 별도 */}
         <Link className="btn" href="/admin">
           관리자 로그인
         </Link>
@@ -48,7 +73,13 @@ export default async function AlbumsPage({ searchParams }) {
       {albums.length === 0 ? (
         <p style={{ opacity: 0.7 }}>아직 앨범이 없어요.</p>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))",
+            gap: 12,
+          }}
+        >
           {albums.map((a) => (
             <Link
               key={a.id}
