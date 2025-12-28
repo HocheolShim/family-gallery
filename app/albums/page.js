@@ -1,111 +1,54 @@
 // app/albums/page.js
-import fs from "fs/promises";
-import path from "path";
-import { cookies } from "next/headers";
-import DeleteAlbumForm from "./DeleteAlbumForm";
-import LogoutButton from "../components/LogoutButton";
-
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-async function readAlbums() {
-  const file = path.join(process.cwd(), "app", "data", "albums.json");
-  try {
-    const raw = await fs.readFile(file, "utf-8");
-    const albums = JSON.parse(raw);
-    return Array.isArray(albums) ? albums : [];
-  } catch {
-    return [{ id: "1", title: "우리 가족 앨범" }];
-  }
+import Link from "next/link";
+
+async function getAlbums() {
+  // 서버에서 자기 도메인으로 fetch할 땐 상대경로 OK
+  const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/albums/list`, {
+    cache: "no-store",
+  });
+  const data = await res.json();
+  return data?.albums || [];
 }
 
 export default async function AlbumsPage({ searchParams }) {
-  const sp = await searchParams; // ✅ 너 환경: Promise일 수 있음
-  const isAdminMode = sp?.admin === "1" || sp?.admin === "true";
-
-  const c = await cookies();
-  const isAdminSession = c.get("admin_session")?.value === "ok";
-
-  // ✅ 진짜 관리자 권한(로그인+모드)
-  const canAdmin = isAdminMode && isAdminSession;
-
-  const albums = await readAlbums();
+  const albums = await getAlbums();
+  const admin = searchParams?.admin === "1";
 
   return (
-    <div className="section">
-      <div className="sectionHead">
-        <div>
-          <h2 className="sectionTitle">앨범</h2>
-          <p className="sectionDesc">앨범을 선택해서 사진을 올리고 볼 수 있어요.</p>
-        </div>
+    <div style={{ padding: 18 }}>
+      <h1 style={{ marginBottom: 8 }}>앨범</h1>
+      <p style={{ opacity: 0.75, marginBottom: 12 }}>앨범을 선택해서 사진을 올리고 볼 수 있어요.</p>
 
-        <div className="row">
-          <a className="btn btnPrimary" href="/albums/new">+ 새 앨범</a>
-
-          {/* ✅ 관리자모드 켜기: 로그인 안됐으면 "로그인"으로 유도 */}
-          {isAdminSession ? (
-            <a className="btn" href={isAdminMode ? "/albums" : "/albums?admin=1"}>
-              {isAdminMode ? "관리자 모드 끄기" : "관리자 모드 켜기"}
-            </a>
-          ) : (
-            <a className="btn" href={`/admin?redirectTo=${encodeURIComponent("/albums?admin=1")}`}>
-              관리자 모드 켜기(로그인)
-            </a>
-          )}
-
-          {/* 로그인/로그아웃 */}
-          {isAdminSession ? (
-            <LogoutButton redirectTo="/albums" />
-          ) : (
-            <a className="btn" href={`/admin?redirectTo=${encodeURIComponent("/albums?admin=1")}`}>
-              관리자 로그인
-            </a>
-          )}
-        </div>
+      <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <Link className="btn" href="/albums/new?admin=1">+ 새 앨범</Link>
+        <Link className="btn" href="/admin">관리자 로그인</Link>
       </div>
 
-      <div className="sectionBody">
-        {/* 상태 배지 */}
-        {canAdmin ? (
-          <div style={{ marginBottom: 12 }}>
-            <span className="pill">
-              <span className="dot dotOn" /> 관리자 모드 ON (삭제 가능)
-            </span>
-          </div>
-        ) : isAdminMode && !isAdminSession ? (
-          <div style={{ marginBottom: 12 }}>
-            <span className="pill">
-              <span className="dot" /> 관리자 모드 요청됨 (로그인 필요)
-            </span>
-          </div>
-        ) : null}
-
-        <div className="grid">
+      {albums.length === 0 ? (
+        <p style={{ opacity: 0.7 }}>아직 앨범이 없어요.</p>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12 }}>
           {albums.map((a) => (
-            <div key={a.id} className="card" style={{ position: "relative" }}>
-              <a
-                href={`/albums/${a.id}${isAdminMode ? "?admin=1" : ""}`}
-                className="cardBody"
-                style={{ display: "block" }}
-              >
-                <div className="kicker">앨범 #{a.id}</div>
-                <div className="title">{a.title}</div>
-                <div className="meta">열기 →</div>
-              </a>
-
-              {/* ✅ 삭제 버튼은 canAdmin일 때만 */}
-              {canAdmin && (
-                <DeleteAlbumForm albumId={a.id} title={a.title} redirectTo="/albums?admin=1" />
-              )}
-            </div>
+            <Link
+              key={a.id}
+              href={`/albums/${a.id}${admin ? "?admin=1" : ""}`}
+              style={{
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 14,
+                padding: 14,
+                textDecoration: "none",
+                display: "block",
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>{a.title}</div>
+              <div style={{ fontSize: 12, opacity: 0.6 }}>{a.createdAt || ""}</div>
+            </Link>
           ))}
         </div>
-
-        <div style={{ marginTop: 14 }}>
-          <span className="small">
-            관리자 기능은 <b>?admin=1</b> + <b>관리자 로그인</b>이 모두 필요해요. 로그아웃하면 관리자모드는 자동으로 무력화됩니다.
-          </span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
