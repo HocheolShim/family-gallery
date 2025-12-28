@@ -1,17 +1,22 @@
 import { headers } from "next/headers";
 
 async function getAlbums() {
-  const h = headers();
-  const host = h.get("host");
-  const protocol = process.env.NODE_ENV === "development" ? "http" : "https";
+  const h = await headers();
 
-  const res = await fetch(
-    `${protocol}://${host}/api/albums/list`,
-    { cache: "no-store" }
-  );
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "https";
+
+  if (!host) {
+    console.error("getAlbums failed: missing host header");
+    return [];
+  }
+
+  const url = `${proto}://${host}/api/albums/list`;
+
+  const res = await fetch(url, { cache: "no-store" });
 
   if (!res.ok) {
-    console.error("getAlbums failed:", res.status);
+    console.error("getAlbums failed:", res.status, "url:", url);
     return [];
   }
 
