@@ -5,25 +5,24 @@ export const revalidate = 0;
 import Link from "next/link";
 
 async function getAlbums() {
-  // 서버에서 자기 도메인으로 fetch할 땐 상대경로 OK
-  const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/albums/list`, {
-    cache: "no-store",
-  });
+  const res = await fetch("/api/albums/list", { cache: "no-store" });
   const data = await res.json();
   return data?.albums || [];
 }
 
-export default async function AlbumsPage({ searchParams }) {
+export default async function AlbumsPage() {
   const albums = await getAlbums();
-  const admin = searchParams?.admin === "1";
 
   return (
     <div style={{ padding: 18 }}>
       <h1 style={{ marginBottom: 8 }}>앨범</h1>
-      <p style={{ opacity: 0.75, marginBottom: 12 }}>앨범을 선택해서 사진을 올리고 볼 수 있어요.</p>
+      <p style={{ opacity: 0.75, marginBottom: 12 }}>
+        앨범을 선택해서 사진을 올리고 볼 수 있어요.
+      </p>
 
       <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-        <Link className="btn" href="/albums/new?admin=1">+ 새 앨범</Link>
+        {/* ✅ 누구나 생성 가능 */}
+        <Link className="btn" href="/albums/new">+ 새 앨범</Link>
         <Link className="btn" href="/admin">관리자 로그인</Link>
       </div>
 
@@ -34,7 +33,7 @@ export default async function AlbumsPage({ searchParams }) {
           {albums.map((a) => (
             <Link
               key={a.id}
-              href={`/albums/${a.id}${admin ? "?admin=1" : ""}`}
+              href={`/albums/${a.id}`}
               style={{
                 border: "1px solid rgba(255,255,255,0.12)",
                 borderRadius: 14,

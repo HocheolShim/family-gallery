@@ -51,27 +51,20 @@ async function writeAlbumsToR2(albums) {
       Key: ALBUMS_KEY,
       Body: JSON.stringify(albums, null, 2),
       ContentType: "application/json; charset=utf-8",
-      CacheControl: "no-store",
     })
   );
 }
 
 export async function POST(req) {
-  // ✅ 누구나 생성 가능: 관리자 체크 제거
   const form = await req.formData();
-
   const title = safeText(form.get("title"), 80);
 
-  // redirectTo는 optional. 없으면 기본 /albums
+  // ✅ 일반 사용자 기본: /albums
   const redirectToRaw = safeText(form.get("redirectTo") || "/albums", 200);
   const redirectTo = redirectToRaw.startsWith("/") ? redirectToRaw : "/albums";
 
-  // 관리자 모드로 생성하면 admin=1 유지 (삭제 버튼 계속 보이게)
-  const isAdmin = req.cookies?.get?.("admin_session")?.value === "ok";
-  const baseRedirect = isAdmin ? "/albums?admin=1" : "/albums";
-
   if (!title) {
-    return NextResponse.redirect(new URL(`${baseRedirect}&err=empty_title`, req.url), { status: 303 });
+    return NextResponse.redirect(new URL(`${redirectTo}?err=empty_title`, req.url), { status: 303 });
   }
 
   const albums = await readAlbumsFromR2();
@@ -85,15 +78,10 @@ export async function POST(req) {
   const next = [album, ...albums];
   await writeAlbumsToR2(next);
 
-  // ✅ 생성 즉시 목록 반영
+  // ✅ 캐시 무효화
   revalidatePath("/albums");
 
-  // ✅ 브라우저 캐시 방지용 버스터
-  // redirectTo가 /albums가 아니라면 그걸 우선, 단 admin 상태 반영
-  const target =
-    redirectTo.startsWith("/albums")
-      ? `${baseRedirect}&t=${Date.now()}`
-      : `${redirectTo}${redirectTo.includes("?") ? "&" : "?"}t=${Date.now()}`;
-
-  return NextResponse.redirect(new URL(target, req.url), { status: 303 });
+  // ✅ 생성 후 목록으로 이동 (캐시 버스터)
+  const sep = redirectTo.includes("?") ? "&" : "?";
+  return NextResponse.redirect(new URL(`${redirectTo}${sep}t=${Date.now()}`, req.url), { status: 303 });
 }
