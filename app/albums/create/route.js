@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { revalidatePath } from "next/cache";
-import { getR2 } from "@/lib/r2";
+import r2 from "@/lib/r2";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +27,7 @@ async function streamToString(stream) {
 }
 
 async function readAlbumsFromR2() {
-    const r2 = getR2();
+
     try {
         const res = await r2.send(
             new GetObjectCommand({
