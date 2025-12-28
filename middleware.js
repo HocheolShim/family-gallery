@@ -5,12 +5,15 @@ const PUBLIC_PATHS = ["/", "/login", "/admin", "/api/auth/login", "/api/auth/log
 
 const PROTECTED_PREFIXES = ["/albums", "/api/albums"];
 
-// 관리자만 허용할 경로(생성/삭제/업로드 등)
-const ADMIN_ONLY_PREFIXES = [
-    "/albums/new",
-    "/api/albums/create",
-    "/api/albums/delete",
-];
+const ADMIN_ONLY_PREFIXES = ["/albums/new", "/api/albums/create", "/api/albums/delete"];
+
+// ✅ cookie 헤더에서 특정 쿠키 값을 안전하게 뽑는 함수
+function getCookie(req, name) {
+    const cookie = req.headers.get("cookie") || "";
+    // name=...; 형태를 찾기
+    const match = cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+    return match ? decodeURIComponent(match[1]) : undefined;
+}
 
 export function middleware(req) {
     const { pathname } = req.nextUrl;
@@ -24,8 +27,8 @@ export function middleware(req) {
     const isProtected = PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
     if (!isProtected) return NextResponse.next();
 
-    // 공용 로그인 쿠키 체크
-    const authed = req.cookies.get("fg_auth")?.value === "1";
+    // ✅ 공용 로그인 쿠키 체크
+    const authed = getCookie(req, "fg_auth") === "1";
     if (!authed) {
         if (pathname.startsWith("/api/")) {
             return new NextResponse(JSON.stringify({ ok: false, error: "UNAUTHORIZED" }), {
@@ -39,14 +42,13 @@ export function middleware(req) {
         return NextResponse.redirect(url);
     }
 
-    // ✅ 여기부터 “관리자 전용” 체크
+    // 관리자 전용 체크
     const isAdminOnly = ADMIN_ONLY_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
     if (!isAdminOnly) return NextResponse.next();
 
-    const isAdmin = req.cookies.get("fg_admin")?.value === "1";
+    const isAdmin = getCookie(req, "fg_admin") === "1";
     if (isAdmin) return NextResponse.next();
 
-    // 관리자 아니면 차단
     if (pathname.startsWith("/api/")) {
         return new NextResponse(JSON.stringify({ ok: false, error: "FORBIDDEN" }), {
             status: 403,
