@@ -1,12 +1,3 @@
-export async function GET(req) {
-    const { searchParams } = new URL(req.url);
-
-    const key = searchParams.get("key");
-
-    // 나머지 기존 코드
-}
-
-
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import r2 from "@/lib/r2";
 

@@ -1,13 +1,3 @@
-export async function GET(req) {
-  const { searchParams } = new URL(req.url);
-
-  const album = searchParams.get("album") || "";
-  const name = searchParams.get("name");
-
-  // 나머지 기존 코드
-}
-
-
 import { NextResponse } from "next/server";
 import path from "path";
 import fs from "fs/promises";
