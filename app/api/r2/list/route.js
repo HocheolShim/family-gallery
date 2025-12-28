@@ -4,42 +4,71 @@ import { r2 } from "@/lib/r2";
 
 export const runtime = "nodejs";
 
+function isSafeId(s) {
+    return typeof s === "string" && /^[0-9A-Za-z_-]+$/.test(s);
+}
+
 export async function GET(req) {
     try {
+        const bucket = process.env.R2_BUCKET_NAME;
+        if (!bucket) {
+            console.error("❌ Missing env: R2_BUCKET_NAME");
+            return NextResponse.json(
+                { ok: false, error: "missing bucket env" },
+                { status: 500 }
+            );
+        }
+
         const { searchParams } = new URL(req.url);
         const albumId = searchParams.get("albumId");
 
-        if (!albumId) {
-            return NextResponse.json({ ok: false, error: "missing albumId" }, { status: 400 });
+        if (!albumId || !isSafeId(albumId)) {
+            return NextResponse.json(
+                { ok: false, error: "invalid albumId" },
+                { status: 400 }
+            );
         }
 
         const prefix = `albums/${albumId}/`;
         const keys = [];
-
-        let ContinuationToken = undefined;
+        let continuationToken;
 
         do {
             const out = await r2.send(
                 new ListObjectsV2Command({
-                    Bucket: process.env.R2_BUCKET_NAME,
+                    Bucket: bucket,
                     Prefix: prefix,
-                    ContinuationToken,
+                    ContinuationToken: continuationToken,
                 })
             );
 
-            (out.Contents || []).forEach((obj) => {
-                if (obj.Key) keys.push(obj.Key);
-            });
+            for (const obj of out.Contents || []) {
+                if (obj?.Key) keys.push(obj.Key);
+            }
 
-            ContinuationToken = out.IsTruncated ? out.NextContinuationToken : undefined;
-        } while (ContinuationToken);
+            continuationToken = out.IsTruncated ? out.NextContinuationToken : undefined;
+        } while (continuationToken);
 
-        // 최신 업로드가 위로 오게 대충 역정렬(키가 timestamp 기반이면 효과 좋음)
+        // 최신 업로드가 위로 오게(키가 timestamp 기반이면 매우 잘 맞음)
         keys.sort().reverse();
 
-        return NextResponse.json({ ok: true, prefix, keys });
+        // 프론트에서 바로 쓸 수 있게 url 제공
+        const origin = new URL(req.url).origin;
+        const items = keys.map((key) => ({
+            key,
+            url: `${origin}/api/r2/image?key=${encodeURIComponent(key)}`,
+        }));
+
+        return NextResponse.json({
+            ok: true,
+            albumId,
+            prefix,
+            count: items.length,
+            keys,   // 기존 호환 유지
+            items,  // 새 권장
+        });
     } catch (err) {
-        console.error("R2 LIST ERROR:", err);
+        console.error("🔥 R2 LIST ERROR:", err);
         return NextResponse.json({ ok: false, error: "list failed" }, { status: 500 });
     }
 }

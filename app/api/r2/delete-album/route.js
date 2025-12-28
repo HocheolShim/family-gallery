@@ -1,52 +1,92 @@
 import { NextResponse } from "next/server";
-import { ListObjectsV2Command, DeleteObjectsCommand } from "@aws-sdk/client-s3";
+import {
+    ListObjectsV2Command,
+    DeleteObjectsCommand,
+} from "@aws-sdk/client-s3";
 import { r2 } from "@/lib/r2";
 
 export const runtime = "nodejs";
 
+function isSafeId(s) {
+    return typeof s === "string" && /^[0-9A-Za-z_-]+$/.test(s);
+}
+
 export async function POST(req) {
     try {
-        const { albumId } = await req.json();
+        const bucket = process.env.R2_BUCKET_NAME;
+        if (!bucket) {
+            console.error("❌ Missing env: R2_BUCKET_NAME");
+            return NextResponse.json(
+                { ok: false, error: "missing bucket env" },
+                { status: 500 }
+            );
+        }
 
-        if (!albumId) {
-            return NextResponse.json({ ok: false, error: "missing albumId" }, { status: 400 });
+        const body = await req.json().catch(() => ({}));
+        const albumId = body?.albumId;
+
+        if (!albumId || !isSafeId(albumId)) {
+            return NextResponse.json(
+                { ok: false, error: "invalid albumId" },
+                { status: 400 }
+            );
         }
 
         const prefix = `albums/${albumId}/`;
-        let ContinuationToken = undefined;
+        let continuationToken;
         let totalDeleted = 0;
 
+        console.log("🧹 R2 DELETE ALBUM START:", prefix);
+
         do {
-            const list = await r2.send(
+            const listRes = await r2.send(
                 new ListObjectsV2Command({
-                    Bucket: process.env.R2_BUCKET_NAME,
+                    Bucket: bucket,
                     Prefix: prefix,
-                    ContinuationToken,
+                    ContinuationToken: continuationToken,
                 })
             );
 
-            const objects = (list.Contents || [])
-                .map((o) => o.Key)
-                .filter(Boolean)
-                .map((Key) => ({ Key }));
+            const objects =
+                listRes.Contents?.map((o) => o.Key)
+                    .filter(Boolean)
+                    .map((Key) => ({ Key })) || [];
 
-            if (objects.length) {
-                const del = await r2.send(
+            if (objects.length > 0) {
+                await r2.send(
                     new DeleteObjectsCommand({
-                        Bucket: process.env.R2_BUCKET_NAME,
-                        Delete: { Objects: objects, Quiet: true },
+                        Bucket: bucket,
+                        Delete: {
+                            Objects: objects,
+                            Quiet: true,
+                        },
                     })
                 );
 
                 totalDeleted += objects.length;
+                console.log("🗑️ Deleted batch:", objects.length);
             }
 
-            ContinuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
-        } while (ContinuationToken);
+            continuationToken = listRes.IsTruncated
+                ? listRes.NextContinuationToken
+                : undefined;
+        } while (continuationToken);
 
-        return NextResponse.json({ ok: true, prefix, deleted: totalDeleted });
+        console.log("✅ R2 DELETE ALBUM DONE:", {
+            albumId,
+            deleted: totalDeleted,
+        });
+
+        return NextResponse.json({
+            ok: true,
+            albumId,
+            deleted: totalDeleted,
+        });
     } catch (err) {
-        console.error("R2 DELETE ALBUM ERROR:", err);
-        return NextResponse.json({ ok: false, error: "delete failed" }, { status: 500 });
+        console.error("🔥 R2 DELETE ALBUM ERROR:", err);
+        return NextResponse.json(
+            { ok: false, error: "delete failed" },
+            { status: 500 }
+        );
     }
 }
