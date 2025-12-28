@@ -22,10 +22,13 @@ export async function POST(req) {
 
     const res = NextResponse.redirect(new URL(next, req.url), { status: 303 });
 
+    // ✅ 로컬(http)에서는 secure 쿠키가 저장 안 됨 → production만 secure
+    const isProd = process.env.NODE_ENV === "production";
+
     res.cookies.set("fg_auth", "1", {
         httpOnly: true,
         sameSite: "lax",
-        secure: true,
+        secure: isProd, // ✅ 여기 핵심
         path: "/",
         maxAge: 60 * 60 * 24 * 30, // 30일
     });
