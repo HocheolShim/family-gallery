@@ -1,20 +1,18 @@
 // app/albums/new/page.js
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 import Link from "next/link";
 
 export default async function NewAlbumPage({ searchParams }) {
-  // ✅ 기본은 일반 사용자 기준
-  const redirectTo = "/albums";
-
+  const admin = searchParams?.admin === "1";
   const err = searchParams?.err;
+
+  // ✅ 일반 유저 기준 / 관리자면 admin 유지
+  const redirectTo = admin ? "/albums?admin=1" : "/albums";
 
   return (
     <div className="section">
       <div className="sectionHead">
         <div className="kicker">
-          <Link href="/albums" style={{ textDecoration: "none" }}>
+          <Link href={admin ? "/albums?admin=1" : "/albums"} style={{ textDecoration: "none" }}>
             ← 앨범
           </Link>
         </div>
@@ -28,12 +26,7 @@ export default async function NewAlbumPage({ searchParams }) {
         <form action="/api/albums/create" method="post" className="formRow">
           <input type="hidden" name="redirectTo" value={redirectTo} />
 
-          <input
-            className="input"
-            name="title"
-            placeholder="예) 2025 여름휴가"
-            required
-          />
+          <input className="input" name="title" placeholder="예) 2025 여름휴가" required />
           <button className="btn btnPrimary" type="submit">
             생성
           </button>
@@ -41,7 +34,7 @@ export default async function NewAlbumPage({ searchParams }) {
 
         {err && (
           <p style={{ marginTop: 12, color: "crimson" }}>
-            앨범 생성에 실패했어요. 다시 시도해줘.
+            앨범 생성 실패: {String(err)}
           </p>
         )}
 

@@ -25,27 +25,30 @@ export default async function AlbumsPage({ searchParams }) {
       </p>
 
       <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-        {/* ✅ 누구나 생성 가능 */}
-        <Link className="btn" href="/albums/new">
+        <Link className="btn" href={admin ? "/albums/new?admin=1" : "/albums/new"}>
           + 새 앨범
         </Link>
 
-        {/* 관리자 로그인은 유지 */}
+        {/* 관리자 로그인은 별도 */}
         <Link className="btn" href="/admin">
           관리자 로그인
         </Link>
+
+        {admin ? (
+          <Link className="btn" href="/albums">
+            관리자 모드 끄기
+          </Link>
+        ) : (
+          <Link className="btn" href="/albums?admin=1">
+            관리자 모드 켜기(로그인)
+          </Link>
+        )}
       </div>
 
       {albums.length === 0 ? (
         <p style={{ opacity: 0.7 }}>아직 앨범이 없어요.</p>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))",
-            gap: 12,
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12 }}>
           {albums.map((a) => (
             <Link
               key={a.id}
@@ -59,9 +62,7 @@ export default async function AlbumsPage({ searchParams }) {
               }}
             >
               <div style={{ fontWeight: 700, marginBottom: 6 }}>{a.title}</div>
-              <div style={{ fontSize: 12, opacity: 0.6 }}>
-                {a.createdAt || ""}
-              </div>
+              <div style={{ fontSize: 12, opacity: 0.6 }}>{a.createdAt || ""}</div>
             </Link>
           ))}
         </div>

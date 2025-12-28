@@ -55,16 +55,22 @@ async function writeAlbumsToR2(albums) {
   );
 }
 
+function withTs(url) {
+  const u = new URL(url, "http://local"); // base는 더미
+  u.searchParams.set("t", String(Date.now()));
+  return u.pathname + u.search;
+}
+
 export async function POST(req) {
   const form = await req.formData();
   const title = safeText(form.get("title"), 80);
 
-  // ✅ 일반 사용자 기본: /albums
+  // ✅ 기본은 일반 사용자 기준
   const redirectToRaw = safeText(form.get("redirectTo") || "/albums", 200);
   const redirectTo = redirectToRaw.startsWith("/") ? redirectToRaw : "/albums";
 
   if (!title) {
-    return NextResponse.redirect(new URL(`${redirectTo}?err=empty_title`, req.url), { status: 303 });
+    return NextResponse.redirect(new URL(withTs(`${redirectTo}?err=empty_title`), req.url), { status: 303 });
   }
 
   const albums = await readAlbumsFromR2();
@@ -78,10 +84,8 @@ export async function POST(req) {
   const next = [album, ...albums];
   await writeAlbumsToR2(next);
 
-  // ✅ 캐시 무효화
+  // ✅ 목록 즉시 반영
   revalidatePath("/albums");
 
-  // ✅ 생성 후 목록으로 이동 (캐시 버스터)
-  const sep = redirectTo.includes("?") ? "&" : "?";
-  return NextResponse.redirect(new URL(`${redirectTo}${sep}t=${Date.now()}`, req.url), { status: 303 });
+  return NextResponse.redirect(new URL(withTs(redirectTo), req.url), { status: 303 });
 }
