@@ -17,12 +17,14 @@ export async function POST(req) {
     }
 
     const res = NextResponse.redirect(new URL("/albums", req.url), { status: 303 });
-    res.cookies.set("family_session", "ok", {
+
+    res.cookies.set("fg_auth", "1", {
         httpOnly: true,
         sameSite: "lax",
-        secure: false, // 나중에 배포(HTTPS)하면 true로
+        secure: process.env.NODE_ENV === "production",
         path: "/",
-        maxAge: 60 * 60 * 24 * 30, // 30일
+        maxAge: 60 * 60 * 24 * 30,
     });
+
     return res;
 }

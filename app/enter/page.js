@@ -1,12 +1,32 @@
+// app/enter/page.js
+export const dynamic = "force-dynamic";
+
+import { redirect } from "next/navigation";
+
 export default function EnterPage() {
     async function onSubmit(formData) {
         "use server";
-        const pass = formData.get("passcode");
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/auth/family`, {
+
+        // ✅ input name="pass" 이므로 pass로 받기
+        const pass = formData.get("pass")?.toString();
+
+        // ✅ API 라우트는 상대경로로 호출 (BASE_URL 불필요)
+        const res = await fetch("/api/auth/family", {
             method: "POST",
-            body: JSON.stringify({ pass }),
             headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pass }),
+            cache: "no-store",
         });
+
+        const data = await res.json().catch(() => ({}));
+
+        // ✅ 실패 처리 (원하면 쿼리로 에러 표시)
+        if (!res.ok || !data?.ok) {
+            redirect("/enter?err=1");
+        }
+
+        // ✅ 성공하면 앨범으로
+        redirect("/albums");
     }
 
     return (
@@ -14,7 +34,8 @@ export default function EnterPage() {
             <h1>가족 사진관</h1>
             <p>공용 비밀번호를 입력하세요.</p>
 
-            <form action="/api/auth/family" method="post">
+            {/* ✅ 서버 액션 연결 */}
+            <form action={onSubmit}>
                 <input
                     name="pass"
                     type="password"
@@ -22,7 +43,7 @@ export default function EnterPage() {
                     style={{ width: "100%", padding: 12, fontSize: 16 }}
                     required
                 />
-                <button style={{ width: "100%", marginTop: 12, padding: 12, fontSize: 16 }}>
+                <button type="submit" style={{ width: "100%", marginTop: 12, padding: 12, fontSize: 16 }}>
                     입장
                 </button>
             </form>
