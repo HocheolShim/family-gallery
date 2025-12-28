@@ -9,16 +9,11 @@ export const dynamic = "force-dynamic";
 
 const ALBUMS_KEY = process.env.ALBUMS_KEY || "albums/index.json";
 
-function isAdmin(req) {
-  return req.cookies?.get?.("admin_session")?.value === "ok";
-}
-
 function safeText(s, max = 60) {
   return String(s || "").trim().slice(0, max);
 }
 
 function makeId() {
-  // 짧고 안전한 id
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
@@ -56,22 +51,27 @@ async function writeAlbumsToR2(albums) {
       Key: ALBUMS_KEY,
       Body: JSON.stringify(albums, null, 2),
       ContentType: "application/json; charset=utf-8",
+      CacheControl: "no-store",
     })
   );
 }
 
 export async function POST(req) {
-  if (!isAdmin(req)) {
-    return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
-  }
-
+  // ✅ 누구나 생성 가능: 관리자 체크 제거
   const form = await req.formData();
+
   const title = safeText(form.get("title"), 80);
-  const redirectToRaw = safeText(form.get("redirectTo") || "/albums?admin=1", 200);
-  const redirectTo = redirectToRaw.startsWith("/") ? redirectToRaw : "/albums?admin=1";
+
+  // redirectTo는 optional. 없으면 기본 /albums
+  const redirectToRaw = safeText(form.get("redirectTo") || "/albums", 200);
+  const redirectTo = redirectToRaw.startsWith("/") ? redirectToRaw : "/albums";
+
+  // 관리자 모드로 생성하면 admin=1 유지 (삭제 버튼 계속 보이게)
+  const isAdmin = req.cookies?.get?.("admin_session")?.value === "ok";
+  const baseRedirect = isAdmin ? "/albums?admin=1" : "/albums";
 
   if (!title) {
-    return NextResponse.redirect(new URL(`${redirectTo}&err=empty_title`, req.url), { status: 303 });
+    return NextResponse.redirect(new URL(`${baseRedirect}&err=empty_title`, req.url), { status: 303 });
   }
 
   const albums = await readAlbumsFromR2();
@@ -85,9 +85,15 @@ export async function POST(req) {
   const next = [album, ...albums];
   await writeAlbumsToR2(next);
 
-  // ✅ 캐시 무효화 (즉시 목록 반영)
+  // ✅ 생성 즉시 목록 반영
   revalidatePath("/albums");
 
-  // ✅ 브라우저 캐시/백버튼 대비 버스터
-  return NextResponse.redirect(new URL(`/albums?admin=1&t=${Date.now()}`, req.url), { status: 303 });
+  // ✅ 브라우저 캐시 방지용 버스터
+  // redirectTo가 /albums가 아니라면 그걸 우선, 단 admin 상태 반영
+  const target =
+    redirectTo.startsWith("/albums")
+      ? `${baseRedirect}&t=${Date.now()}`
+      : `${redirectTo}${redirectTo.includes("?") ? "&" : "?"}t=${Date.now()}`;
+
+  return NextResponse.redirect(new URL(target, req.url), { status: 303 });
 }
