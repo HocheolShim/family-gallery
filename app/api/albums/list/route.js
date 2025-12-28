@@ -8,14 +8,29 @@ export const dynamic = "force-dynamic";
 
 const ALBUMS_KEY = process.env.ALBUMS_KEY || "albums/index.json";
 
-async function streamToString(stream) {
-    // AWS SDK v3: Body is a stream in node
-    return await new Promise((resolve, reject) => {
-        const chunks = [];
-        stream.on("data", (c) => chunks.push(c));
-        stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
-        stream.on("error", reject);
-    });
+async function bodyToString(body) {
+    if (!body) return "";
+
+    // 1) Node.js Readable stream
+    if (typeof body.on === "function") {
+        return await new Promise((resolve, reject) => {
+            const chunks = [];
+            body.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+            body.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
+            body.on("error", reject);
+        });
+    }
+
+    // 2) Web ReadableStream
+    if (typeof body.getReader === "function") {
+        return await new Response(body).text();
+    }
+
+    // 3) string
+    if (typeof body === "string") return body;
+
+    // 4) fallback
+    return String(body);
 }
 
 async function readAlbumsFromR2() {
@@ -27,11 +42,15 @@ async function readAlbumsFromR2() {
             })
         );
 
-        const raw = await streamToString(res.Body);
+        const raw = await bodyToString(res.Body);
+
+        if (!raw) return [];
+
         const data = JSON.parse(raw);
         return Array.isArray(data) ? data : [];
     } catch (e) {
-        // 파일 없으면 그냥 빈 배열로
+        // ✅ 원인 로그를 숨기지 말고 찍어라 (지금 문제 잡는 핵심)
+        console.error("readAlbumsFromR2 failed:", e);
         return [];
     }
 }
