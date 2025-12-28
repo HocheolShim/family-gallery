@@ -11,7 +11,8 @@ export async function POST(req) {
     const pw = String(form.get("password") || "");
     const next = safeNext(form.get("next") || "/albums");
 
-    const correct = process.env.FAMILY_PASSWORD;
+    // ✅ 둘 다 지원
+    const correct = process.env.FAMILY_PASSWORD || process.env.FAMILY_PASSCODE;
 
     if (!correct || pw !== correct) {
         const url = new URL("/login", req.url);
@@ -22,15 +23,14 @@ export async function POST(req) {
 
     const res = NextResponse.redirect(new URL(next, req.url), { status: 303 });
 
-    // ✅ 로컬(http)에서는 secure 쿠키가 저장 안 됨 → production만 secure
     const isProd = process.env.NODE_ENV === "production";
 
     res.cookies.set("fg_auth", "1", {
         httpOnly: true,
         sameSite: "lax",
-        secure: isProd, // ✅ 여기 핵심
+        secure: isProd,
         path: "/",
-        maxAge: 60 * 60 * 24 * 30, // 30일
+        maxAge: 60 * 60 * 24 * 30,
     });
 
     return res;
