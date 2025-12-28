@@ -1,38 +1,49 @@
 // app/albums/page.js
 export const dynamic = "force-dynamic";
 
+import { cookies } from "next/headers";
 import AlbumsClient from "./AlbumsClient";
 
-export default function AlbumsPage({ searchParams }) {
-  const admin = searchParams?.admin === "1";
+export default function AlbumsPage() {
+  const c = cookies();
+  const authed = c.get("fg_auth")?.value === "1";
+  const isAdmin = c.get("fg_admin")?.value === "1";
+
+  // (원래 middleware가 막아주지만 안전용)
+  if (!authed) {
+    return (
+      <div style={{ padding: 18 }}>
+        <h1>앨범</h1>
+        <p>로그인이 필요합니다.</p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: 18 }}>
-      <h1 style={{ marginBottom: 8 }}>앨범</h1>
-      <p style={{ opacity: 0.75, marginBottom: 12 }}>
-        앨범을 선택해서 사진을 올리고 볼 수 있어요.
-      </p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ marginBottom: 8 }}>앨범</h1>
+          <p style={{ opacity: 0.75, marginBottom: 12 }}>
+            앨범을 선택해서 사진을 올리고 볼 수 있어요.
+          </p>
+        </div>
 
-      {/* 상단 버튼 영역 */}
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
-          marginBottom: 16,
-          flexWrap: "wrap",
-          alignItems: "center",
-        }}
-      >
-        {/* 로그아웃 */}
-        <form action="/api/auth/logout" method="post">
-          <button className="btn" type="submit">
-            로그아웃
-          </button>
-        </form>
+        <div
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: "1px solid rgba(255,255,255,0.18)",
+            background: "rgba(0,0,0,0.15)",
+            fontSize: 12,
+            opacity: 0.9,
+          }}
+        >
+          모드: <b>{isAdmin ? "관리자" : "공용"}</b>
+        </div>
       </div>
 
-      {/* 실제 앨범 목록 (Client Component) */}
-      <AlbumsClient admin={admin} />
+      <AlbumsClient isAdmin={isAdmin} />
     </div>
   );
 }
