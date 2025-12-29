@@ -1,29 +1,75 @@
-import fs from "fs/promises";
-import path from "path";
 import { cookies } from "next/headers";
+import { GetObjectCommand } from "@aws-sdk/client-s3";
+import r2 from "@/lib/r2";
+
 import Gallery from "./Gallery";
 import AdminBar from "./AdminBar";
 import TitleEditor from "./TitleEditor";
 
 export const dynamic = "force-dynamic";
 
-async function readAlbums() {
-  const file = path.join(process.cwd(), "app", "data", "albums.json");
+const ALBUMS_KEY = process.env.ALBUMS_KEY || "albums/index.json";
+
+async function bodyToString(body) {
+  if (!body) return "";
+
+  // 1) Node.js Readable stream
+  if (typeof body.on === "function") {
+    return await new Promise((resolve, reject) => {
+      const chunks = [];
+      body.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+      body.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
+      body.on("error", reject);
+    });
+  }
+
+  // 2) Web ReadableStream
+  if (typeof body.getReader === "function") {
+    return await new Response(body).text();
+  }
+
+  // 3) string
+  if (typeof body === "string") return body;
+
+  // 4) fallback
+  return String(body);
+}
+
+async function readAlbumsFromR2() {
   try {
-    const raw = await fs.readFile(file, "utf-8");
-    const albums = JSON.parse(raw);
-    return Array.isArray(albums) ? albums : [];
-  } catch {
+    const res = await r2.send(
+      new GetObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME,
+        Key: ALBUMS_KEY,
+      })
+    );
+
+    const raw = await bodyToString(res.Body);
+    if (!raw) return [];
+
+    const data = JSON.parse(raw);
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    // 파일이 아직 없거나 읽기 실패면 빈 배열
+    console.error("readAlbumsFromR2 failed:", e);
     return [];
   }
 }
 
 async function getAlbumTitle(albumId) {
-  const albums = await readAlbums();
-  const found = albums.find((a) => String(a.id) === String(albumId));
+  const albums = await readAlbumsFromR2();
+  const found = albums.find((a) => String(a?.id) === String(albumId));
   return found?.title || null;
 }
 
+/**
+ * ⚠️ 현재 listImages는 로컬 uploads 폴더를 읽고 있음.
+ * Vercel(서버리스) 환경에선 로컬 디스크가 지속되지 않아 운영에 부적합.
+ * 지금 당장 제목 문제만 해결하려면 일단 유지 가능.
+ * (추후 R2 기반 이미지 리스트 API로 바꾸는 게 정석)
+ */
+import fs from "fs/promises";
+import path from "path";
 async function listImages(albumId) {
   const dir = path.join(process.cwd(), "uploads", albumId);
   try {
@@ -42,7 +88,10 @@ export default async function AlbumPage({ params, searchParams }) {
   const isAdminMode = sp?.admin === "1" || sp?.admin === "true";
 
   const c = await cookies();
-  const isAdminSession = c.get("admin_session")?.value === "ok";
+
+  // ✅ 네 프로젝트의 관리자 쿠키는 fg_admin 으로 쓰고 있으니 그걸로 통일
+  // (기존 admin_session은 예전 코드라서 여기서부터 일치시키는 게 맞음)
+  const isAdminSession = c.get("fg_admin")?.value === "1";
   const canAdmin = isAdminMode && isAdminSession;
 
   const [title, images] = await Promise.all([getAlbumTitle(albumId), listImages(albumId)]);
@@ -53,7 +102,9 @@ export default async function AlbumPage({ params, searchParams }) {
       <div className="sectionHead">
         <div>
           <div className="kicker">
-            <a href="/albums" style={{ textDecoration: "none" }}>← 앨범</a>
+            <a href="/albums" style={{ textDecoration: "none" }}>
+              ← 앨범
+            </a>
           </div>
 
           <h2 className="sectionTitle" style={{ marginTop: 8 }}>
@@ -76,7 +127,9 @@ export default async function AlbumPage({ params, searchParams }) {
         <div className="section" style={{ marginTop: 0 }}>
           <div className="sectionHead">
             <div>
-              <h3 className="sectionTitle" style={{ fontSize: 16 }}>사진 업로드</h3>
+              <h3 className="sectionTitle" style={{ fontSize: 16 }}>
+                사진 업로드
+              </h3>
               <p className="sectionDesc">선택 후 업로드하면 이 앨범에 저장돼요.</p>
             </div>
           </div>
@@ -86,7 +139,9 @@ export default async function AlbumPage({ params, searchParams }) {
               <input type="hidden" name="albumId" value={albumId} />
               <input type="hidden" name="redirectTo" value={`/albums/${albumId}${isAdminMode ? "?admin=1" : ""}`} />
               <input className="input" type="file" name="file" accept="image/*" required />
-              <button className="btn btnPrimary" type="submit">업로드</button>
+              <button className="btn btnPrimary" type="submit">
+                업로드
+              </button>
               <span className="small">
                 삭제/제목변경은 <b>관리자 로그인 + 관리자모드</b>에서만 가능합니다.
               </span>
