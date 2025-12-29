@@ -33,7 +33,7 @@ export default function AlbumsClient({ isAdmin }) {
   }, []);
 
   async function deleteAlbum(id, title) {
-    if (!isAdmin) return; // 안전장치(UI도 막지만 한번 더)
+    if (!isAdmin) return;
     if (!confirm(`정말 "${title}" 앨범을 삭제할까요?\n(앨범 목록에서 제거됩니다)`)) return;
 
     setBusyId(id);
@@ -61,27 +61,40 @@ export default function AlbumsClient({ isAdmin }) {
   return (
     <div>
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-        {/* ✅ 공용/관리자 모두 앨범 생성 가능 */}
-        <Link className="btn" href="/albums/new">
+        {/* ✅ 공용/관리자 모두 앨범 생성 가능
+            ✅ Link 클릭이 CSS/오버레이 때문에 씹히는 경우가 있어서 router.push 버튼으로 처리 */}
+        <button
+          type="button"
+          className="btn"
+          style={{ pointerEvents: "auto", position: "relative", zIndex: 10 }}
+          onClick={() => router.push("/albums/new")}
+        >
           + 새 앨범
-        </Link>
+        </button>
 
-        {/* (선택) 관리자일 때는 굳이 로그인 버튼 안 보여도 됨 */}
         {!isAdmin && (
-          <Link className="btn" href="/admin">
+          <Link className="btn" href="/admin" style={{ pointerEvents: "auto", position: "relative", zIndex: 10 }}>
             관리자 로그인
           </Link>
         )}
 
         <form action="/api/auth/logout" method="post">
-          <button className="btn" type="submit">
+          <button
+            className="btn"
+            type="submit"
+            style={{ pointerEvents: "auto", position: "relative", zIndex: 10 }}
+          >
             로그아웃(공용)
           </button>
         </form>
 
         {isAdmin && (
           <form action="/api/auth/admin-logout" method="post">
-            <button className="btn" type="submit">
+            <button
+              className="btn"
+              type="submit"
+              style={{ pointerEvents: "auto", position: "relative", zIndex: 10 }}
+            >
               관리자 로그아웃
             </button>
           </form>
@@ -111,9 +124,10 @@ export default function AlbumsClient({ isAdmin }) {
               {isAdmin && (
                 <button
                   className="btn"
-                  style={{ marginTop: 10, width: "100%" }}
+                  style={{ marginTop: 10, width: "100%", pointerEvents: "auto", position: "relative", zIndex: 10 }}
                   disabled={busyId === a.id}
                   onClick={() => deleteAlbum(a.id, a.title)}
+                  type="button"
                 >
                   {busyId === a.id ? "삭제 중..." : "앨범 삭제"}
                 </button>
